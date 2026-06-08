@@ -41,6 +41,7 @@ jspm_packages/
 .env.test.local
 .env.production.local
 .env.local
+.env.config
 
 # OS files
 .DS_Store

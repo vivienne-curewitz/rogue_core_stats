@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_USER: devuser
       POSTGRES_PASSWORD: devpassword
-      POSTGRES_DB: aboutme_db
+      POSTGRES_DB: rc_db
     ports:
       - "5432:5432"
     volumes:
