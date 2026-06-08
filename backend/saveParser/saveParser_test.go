@@ -2,6 +2,7 @@ package saveparser
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"testing"
 )
@@ -53,4 +54,25 @@ func TestSaveParserStructure(t *testing.T) {
 			t.Errorf("Expected key %q not found in JSON top level. Actual keys: %v", key, keys)
 		}
 	}
+}
+
+func TestGetRunHistoryData(t *testing.T) {
+	filePath := "example.sav"
+	fdata, err := readFile(filePath)
+	if err != nil {
+		t.Errorf("Could not load testing file: %s\n", err)
+	}
+	jsonStr, err := ConvertUesaveToJSON(fdata)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %s\n", err)
+	}
+
+	runHistoryData := GetRunHistoryEntries(jsonStr)
+	if runHistoryData == nil {
+		t.Errorf("Expected run history data, but got an empty string")
+	}
+	if len(runHistoryData) != 8 {
+		t.Errorf("Expected 8 Runs, Got %d\n", len(runHistoryData))
+	}
+	log.Printf("Run History Data: %s\n", runHistoryData)
 }
