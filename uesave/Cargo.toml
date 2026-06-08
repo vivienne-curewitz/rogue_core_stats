@@ -1,0 +1,11 @@
+[package]
+name = "uesave_go_bridge"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"] # Generates .so/.dylib/.dll or .a
+
+[dependencies]
+serde_json = "1.0.150"
+uesave = { git = "https://github.com/trumank/uesave.git" }
