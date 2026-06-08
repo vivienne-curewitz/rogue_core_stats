@@ -74,5 +74,62 @@ func TestGetRunHistoryData(t *testing.T) {
 	if len(runHistoryData) != 8 {
 		t.Errorf("Expected 8 Runs, Got %d\n", len(runHistoryData))
 	}
-	log.Printf("Run History Data: %s\n", runHistoryData)
+}
+
+func TestGetRunHistoryIDs(t *testing.T) {
+	filePath := "example.sav"
+	fdata, err := readFile(filePath)
+	if err != nil {
+		t.Errorf("Could not load testing file: %s\n", err)
+	}
+	jsonStr, err := ConvertUesaveToJSON(fdata)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %s\n", err)
+	}
+
+	runHistoryData := GetRunHistoryEntries(jsonStr)
+	if runHistoryData == nil {
+		t.Errorf("Expected run history data, but got an empty string")
+	}
+	if len(runHistoryData) != 8 {
+		t.Errorf("Expected 8 Runs, Got %d\n", len(runHistoryData))
+	}
+	id_0 := GetRunID(runHistoryData[0])
+	id_1 := GetRunID(runHistoryData[1])
+	if id_0 == id_1 {
+		t.Errorf("Expected different IDs for different runs, but got the same ID: %s", id_0)
+	}
+	id_0_repeated := GetRunID(runHistoryData[0])
+	if id_0 != id_0_repeated {
+		t.Errorf("Expected same ID for the same run, but got different IDs: %s and %s", id_0, id_0_repeated)
+	}
+	log.Printf("Run IDs: %s, %s\n", id_0, id_1)
+}
+
+func TestGetRunHistoryPlayers(t *testing.T) {
+	filePath := "example.sav"
+	fdata, err := readFile(filePath)
+	if err != nil {
+		t.Errorf("Could not load testing file: %s\n", err)
+	}
+	jsonStr, err := ConvertUesaveToJSON(fdata)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %s\n", err)
+	}
+
+	runHistoryData := GetRunHistoryEntries(jsonStr)
+	if runHistoryData == nil {
+		t.Errorf("Expected run history data, but got an empty string")
+	}
+	if len(runHistoryData) != 8 {
+		t.Errorf("Expected 8 Runs, Got %d\n", len(runHistoryData))
+	}
+	players0 := GetRunPlayers(runHistoryData[0])
+	numUpgrades := []int{19, 22, 17, 20}
+	for i, player := range players0 {
+		upgrades := GetRunUpgrades(player, GetRunID(runHistoryData[0]))
+		if len(upgrades) != numUpgrades[i] {
+			t.Errorf("Expected %d upgrades for player %d, but got %d\n", numUpgrades[i], i, len(upgrades))
+		}
+	}
 }

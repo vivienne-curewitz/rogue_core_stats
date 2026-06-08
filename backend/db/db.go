@@ -41,7 +41,6 @@ func createTables(ctx context.Context) error {
 			player_id TEXT NOT NULL,
 			item_id TEXT NOT NULL,
 			quantity INTEGER NOT NULL DEFAULT 1,
-			category TEXT NOT NULL,
 			PRIMARY KEY (run_id, player_id, item_id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS run_status (
