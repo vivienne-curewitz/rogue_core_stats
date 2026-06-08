@@ -9,16 +9,10 @@ import "C"
 
 import (
 	"fmt"
-	"os"
 	"unsafe"
 )
 
-func ConvertUesaveToJSON(filePath string) (string, error) {
-	fileBytes, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", err
-	}
-
+func ConvertUesaveToJSON(fileBytes []byte) (string, error) {
 	// Pass Go byte slice pointer to Rust
 	cBytes := (*C.uint8_t)(unsafe.Pointer(&fileBytes[0]))
 	cLen := C.size_t(len(fileBytes))

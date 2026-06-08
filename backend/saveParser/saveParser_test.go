@@ -2,12 +2,25 @@ package saveparser
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 )
 
+func readFile(filePath string) ([]byte, error) {
+	fileBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return fileBytes, nil
+}
+
 func TestSaveParser(t *testing.T) {
 	filePath := "example.sav"
-	_, err := ConvertUesaveToJSON(filePath)
+	data, err := readFile(filePath)
+	if err != nil {
+		t.Errorf("Could not load testing file: %s\n", err)
+	}
+	_, err = ConvertUesaveToJSON(data)
 	if err != nil {
 		t.Errorf("Failed to parse file: %s\n", err)
 	}
@@ -15,7 +28,11 @@ func TestSaveParser(t *testing.T) {
 
 func TestSaveParserStructure(t *testing.T) {
 	filePath := "example.sav"
-	jsonStr, err := ConvertUesaveToJSON(filePath)
+	fdata, err := readFile(filePath)
+	if err != nil {
+		t.Errorf("Could not load testing file: %s\n", err)
+	}
+	jsonStr, err := ConvertUesaveToJSON(fdata)
 	if err != nil {
 		t.Fatalf("Failed to parse file: %s\n", err)
 	}
