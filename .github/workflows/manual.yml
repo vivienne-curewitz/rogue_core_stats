@@ -1,0 +1,57 @@
+name: Personal Website Build and Deploy
+
+# Step 1: Trigger only when a PR is merged into the main branch
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ closed ]
+  workflow_dispatch:
+
+# Future-proof the runner against the Node 20 deprecation
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    # Only run if the PR was actually merged, not just closed without merging
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+    # --------------------------------------------------------
+    # Setup & Frontend Build
+    # --------------------------------------------------------
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # Match your local Node version
+        cache: 'npm'
+        cache-dependency-path: ./aboutme/package-lock.json
+
+    - name: Install dependencies & Build Frontend
+      run: |
+        cd aboutme # Change to your frontend directory if applicable
+        npm ci
+        npm run build
+      # This generates your frontend artifact (e.g., a 'dist' or 'build' folder)
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: registry.cloud.cbh.kth.se
+        username: ${{ secrets.KTH_DOCKER_USERNAME }}
+        password: ${{ secrets.KTH_DOCKER_PASSWORD }}
+
+    # --------------------------------------------------------
+    # Step 3: Build Backend Container (Injecting Frontend)
+    # --------------------------------------------------------
+    - name: Build and Push Docker Image
+      uses: docker/build-push-action@v5
+      with:
+        context: . # Your build context. Dockerfile should handle copying the frontend folder
+        file: ./aboutme_backend/Dockerfile # Path to your Dockerfile
+        push: true
+        tags: ${{ secrets.KTH_DOCKER_TAG }}
