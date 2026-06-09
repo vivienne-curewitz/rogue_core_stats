@@ -2,6 +2,9 @@ package saveparser
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"sort"
 	"testing"
 
 	"github.com/vivienne-curewitz/rogue_core_stats/db"
@@ -29,7 +32,7 @@ func TestExtractAndWrite(t *testing.T) {
 		t.Fatalf("Failed to recreate tables: %v", err)
 	}
 
-	data, _ := readFile("example.sav")
+	data, _ := os.ReadFile("example.sav")
 
 	jsonStr, err := ConvertUesaveToJSON(data)
 	if err != nil {
@@ -73,7 +76,7 @@ func TestDatabaseIntegrity(t *testing.T) {
 	}
 
 	// Read file
-	data, _ := readFile("example.sav")
+	data, _ := os.ReadFile("example.sav")
 	jsonStr, err := ConvertUesaveToJSON(data)
 	if err != nil {
 		t.Fatalf("Failed to convert save to JSON: %v", err)
@@ -84,11 +87,11 @@ func TestDatabaseIntegrity(t *testing.T) {
 		t.Fatal("No runs found in history")
 	}
 
-	// We'll perform extraction ONLY ONCE to ensure consistent UUIDs
 	runString := runs[0]
 	runId := GetRunID(runString)
 	players := GetRunPlayers(runString)
 
+	// Local extraction for "expected" data
 	var expectedUpgrades []types.Upgrade
 	var expectedItems []types.Item
 
@@ -97,13 +100,13 @@ func TestDatabaseIntegrity(t *testing.T) {
 		pItems, pItemUpgrades := GetRunItems(player, runId)
 
 		allPlayerUpgrades := append(pUpgrades, pItemUpgrades...)
-		// Consolidate per player as ExtractRunData does
 		allPlayerUpgrades = consolidateUpgrades(allPlayerUpgrades)
 
 		expectedUpgrades = append(expectedUpgrades, allPlayerUpgrades...)
 		expectedItems = append(expectedItems, pItems...)
 	}
 
+	// Write to DB using production code
 	ExtractRunData(runString)
 
 	// Fetch from DB
@@ -116,44 +119,80 @@ func TestDatabaseIntegrity(t *testing.T) {
 		t.Fatalf("Failed to fetch items from DB: %v", err)
 	}
 
-	// Compare lengths
-	if len(expectedUpgrades) != len(dbUpgrades) {
-		t.Errorf("Upgrades length mismatch: expected %d, got %d", len(expectedUpgrades), len(dbUpgrades))
-	}
-	if len(expectedItems) != len(dbItems) {
-		t.Errorf("Items length mismatch: expected %d, got %d", len(expectedItems), len(dbItems))
+	// Structural verification helper
+	getFingerprints := func(items []types.Item, upgrades []types.Upgrade) map[string][]string {
+		// Map Player -> list of item fingerprints
+		playerItems := make(map[string][]string)
+
+		// Group upgrades by (Player, Reference)
+		type upgKey struct {
+			PlayerID  string
+			Reference string
+		}
+		upgGroups := make(map[upgKey][]string)
+		playerLevelUpgrades := make(map[string][]string)
+
+		for _, u := range upgrades {
+			if u.Reference == "" {
+				playerLevelUpgrades[u.PlayerId] = append(playerLevelUpgrades[u.PlayerId], fmt.Sprintf("%s:%d", u.UpgradeId, u.Quantity))
+				continue
+			}
+			key := upgKey{u.PlayerId, u.Reference}
+			upgGroups[key] = append(upgGroups[key], fmt.Sprintf("%s:%d", u.UpgradeId, u.Quantity))
+		}
+
+		// Sort player level upgrades
+		for p := range playerLevelUpgrades {
+			sort.Strings(playerLevelUpgrades[p])
+		}
+
+		// Create item fingerprints
+		for _, it := range items {
+			key := upgKey{it.PlayerId, it.Reference}
+			uList := upgGroups[key]
+			sort.Strings(uList)
+			fingerprint := fmt.Sprintf("%s[%v]", it.ItemId, uList)
+			playerItems[it.PlayerId] = append(playerItems[it.PlayerId], fingerprint)
+		}
+
+		// Sort item lists per player
+		for p := range playerItems {
+			sort.Strings(playerItems[p])
+		}
+
+		// Add player-level upgrades as a special "item"
+		for p, ups := range playerLevelUpgrades {
+			playerItems[p] = append(playerItems[p], fmt.Sprintf("PLAYER_LEVEL[%v]", ups))
+			sort.Strings(playerItems[p])
+		}
+
+		return playerItems
 	}
 
-	// Helper to create maps for easy comparison
-	checkUpgrades := make(map[string]types.Upgrade)
-	for _, u := range dbUpgrades {
-		// Key must be unique: player + upgrade + reference
-		key := u.PlayerId + "|" + u.UpgradeId + "|" + u.Reference
-		checkUpgrades[key] = u
+	expectedFingerprints := getFingerprints(expectedItems, expectedUpgrades)
+	dbFingerprints := getFingerprints(dbItems, dbUpgrades)
+
+	// Compare
+	if len(expectedFingerprints) != len(dbFingerprints) {
+		t.Errorf("Player count mismatch: expected %d, got %d", len(expectedFingerprints), len(dbFingerprints))
 	}
 
-	for _, u := range expectedUpgrades {
-		key := u.PlayerId + "|" + u.UpgradeId + "|" + u.Reference
-		dbU, ok := checkUpgrades[key]
+	for p, eList := range expectedFingerprints {
+		dList, ok := dbFingerprints[p]
 		if !ok {
-			t.Errorf("Upgrade for player %s, id %s, ref %s missing from DB", u.PlayerId, u.UpgradeId, u.Reference)
+			t.Errorf("Player %s missing from DB", p)
 			continue
 		}
-		if dbU.Quantity != u.Quantity {
-			t.Errorf("Quantity mismatch for upgrade %s: expected %d, got %d", u.UpgradeId, u.Quantity, dbU.Quantity)
+		if len(eList) != len(dList) {
+			t.Errorf("Fingerprint count mismatch for player %s: expected %d, got %d", p, len(eList), len(dList))
+			t.Logf("Expected: %v", eList)
+			t.Logf("Got:      %v", dList)
+			continue
 		}
-	}
-
-	checkItems := make(map[string]types.Item)
-	for _, i := range dbItems {
-		key := i.PlayerId + "|" + i.ItemId + "|" + i.Reference
-		checkItems[key] = i
-	}
-
-	for _, i := range expectedItems {
-		key := i.PlayerId + "|" + i.ItemId + "|" + i.Reference
-		if _, ok := checkItems[key]; !ok {
-			t.Errorf("Item for player %s, id %s, ref %s missing from DB", i.PlayerId, i.ItemId, i.Reference)
+		for i := range eList {
+			if eList[i] != dList[i] {
+				t.Errorf("Fingerprint mismatch for player %s at index %d: expected %s, got %s", p, i, eList[i], dList[i])
+			}
 		}
 	}
 }
