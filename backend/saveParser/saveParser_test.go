@@ -132,4 +132,13 @@ func TestGetRunHistoryPlayers(t *testing.T) {
 			t.Errorf("Expected %d upgrades for player %d, but got %d\n", numUpgrades[i], i, len(upgrades))
 		}
 	}
+	items, item_upgrades := GetRunItems(players0[0], GetRunID(runHistoryData[0]))
+	log.Println("Items:")
+	for _, item := range items {
+		log.Printf("Item ID: %s -- Ref: %s\n", item.ItemId, item.Reference)
+	}
+	log.Println("Upgrades:")
+	for _, upgrade := range item_upgrades {
+		log.Printf("Upgrade ID: %s, Quantity: %d, Ref: %s\n", upgrade.UpgradeId, upgrade.Quantity, upgrade.Reference)
+	}
 }

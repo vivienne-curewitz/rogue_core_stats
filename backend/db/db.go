@@ -36,11 +36,19 @@ func createTables(ctx context.Context) error {
 			icon_name TEXT NOT NULL,
 			icon_file TEXT NOT NULL
 		);`,
-		`CREATE TABLE IF NOT EXISTS item_in_run (
+		`CREATE TABLE IF NOT EXISTS upgrades (
 			run_id TEXT NOT NULL,
 			player_id TEXT NOT NULL,
 			item_id TEXT NOT NULL,
 			quantity INTEGER NOT NULL DEFAULT 1,
+			item_link TEXT NOT NULL,
+			PRIMARY KEY (run_id, player_id, item_id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS items (
+			run_id TEXT NOT NULL,
+			player_id TEXT NOT NULL,
+			item_id TEXT NOT NULL,
+			reference TEXT NOT NULL,
 			PRIMARY KEY (run_id, player_id, item_id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS run_status (

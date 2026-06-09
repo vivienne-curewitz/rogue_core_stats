@@ -7,15 +7,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
+	"github.com/vivienne-curewitz/rogue_core_stats/types"
 )
-
-type Upgrade struct {
-	RunId    string
-	PlayerId string
-	ItemId   string
-	Quantity int
-}
 
 // saveData is a json string
 func GetRunHistoryEntries(saveData string) []string {
@@ -60,19 +55,49 @@ func GetRunPlayers(runString string) []string {
 	return retPd
 }
 
-func GetRunUpgrades(playerString string, runID string) []Upgrade {
+func GetRunUpgrades(playerString string, runID string) []types.Upgrade {
 	name := gjson.Get(playerString, "PlayerName_0")
 	upgradesRet := gjson.Get(playerString, "UnlockRecords_0.#(SelectedSlot_0.SlotIndex_0==-1)#").Array()
-	retUps := make([]Upgrade, len(upgradesRet))
+	retUps := make([]types.Upgrade, len(upgradesRet))
 	for i, ur := range upgradesRet {
 		itemID := ur.Get("Unlock_0")
 		quantity := ur.Get("count_0")
-		retUps[i] = Upgrade{
-			RunId:    runID,
-			PlayerId: name.String(),
-			ItemId:   itemID.String(),
-			Quantity: int(quantity.Int()),
+		retUps[i] = types.Upgrade{
+			RunId:     runID,
+			PlayerId:  name.String(),
+			UpgradeId: itemID.String(),
+			Quantity:  int(quantity.Int()),
 		}
 	}
 	return retUps
+}
+
+func GetRunItems(playerString string, runID string) ([]types.Item, []types.Upgrade) {
+	name := gjson.Get(playerString, "PlayerName_0")
+	itemsRet := gjson.Get(playerString, "UnlockRecords_0.#(SelectedSlot_0.SlotIndex_0!=-1)#").Array()
+	retItems := make([]types.Item, len(itemsRet))
+	retUps := make([]types.Upgrade, 0)
+	for i, ur := range itemsRet {
+		itemID := ur.Get("Unlock_0")
+		iref := uuid.New().String()
+		retItems[i] = types.Item{
+			RunId:     runID,
+			PlayerId:  name.String(),
+			ItemId:    itemID.String(),
+			Reference: iref,
+		}
+		itemUpgrades := ur.Get("Attributes_0").Array()
+		for _, iu := range itemUpgrades {
+			upgradeID := iu.Get("ID_0")
+			quantity := iu.Get("count_0")
+			retUps = append(retUps, types.Upgrade{
+				RunId:     runID,
+				PlayerId:  name.String(),
+				UpgradeId: upgradeID.String(),
+				Quantity:  int(quantity.Int()),
+				Reference: iref,
+			})
+		}
+	}
+	return retItems, retUps
 }
