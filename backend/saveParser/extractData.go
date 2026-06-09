@@ -1,6 +1,7 @@
 package saveparser
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"log"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
+	"github.com/vivienne-curewitz/rogue_core_stats/db"
 	"github.com/vivienne-curewitz/rogue_core_stats/types"
 )
 
@@ -16,7 +18,6 @@ import (
 func GetRunHistoryEntries(saveData string) []string {
 	runs := gjson.Get(saveData, "root.properties.RunHistory_0.Entries_0")
 	if runs.Exists() {
-		log.Println("Found run history")
 		retval := make([]string, 0)
 		runs.ForEach(func(key, value gjson.Result) bool {
 			retval = append(retval, value.String())
@@ -44,6 +45,10 @@ func GetRunID(runString string) string {
 	// hash with sha256
 	hash := sha256.Sum256([]byte(concat))
 	return hex.EncodeToString(hash[:])
+}
+
+func GetRunStatus(runString string) bool {
+	return gjson.Get(runString, "SharedInfo_0.MissionSuccess_0").Bool()
 }
 
 func GetRunPlayers(runString string) []string {
@@ -100,4 +105,38 @@ func GetRunItems(playerString string, runID string) ([]types.Item, []types.Upgra
 		}
 	}
 	return retItems, retUps
+}
+
+func ExtractRunData(runString string) (bool, error) {
+	ctx := context.Background()
+	runId := GetRunID(runString)
+	exists, err := db.RunExists(ctx, runId)
+	if err != nil {
+		log.Printf("Error checking if run exists: %v", err)
+		return false, err
+	}
+	if exists {
+		return false, nil
+	}
+	runStatus := GetRunStatus(runString)
+	err = db.WriteRunStatus(ctx, types.RunStatus{
+		RunId:  runId,
+		Status: runStatus,
+	})
+	if err != nil {
+		log.Printf("Error inserting run status: %v", err)
+		return false, err
+	}
+	// check if runId already exists in the database
+	players := GetRunPlayers(runString)
+	for _, player := range players {
+		upgrades := GetRunUpgrades(player, runId)
+		items, itemUpgrades := GetRunItems(player, runId)
+		upgrades = slices.Concat(upgrades, itemUpgrades)
+		// write items
+		db.BatchWriteItems(ctx, items)
+		// write upgrades
+		db.BatchWriteUpgrades(ctx, upgrades)
+	}
+	return true, nil
 }

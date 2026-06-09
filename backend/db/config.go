@@ -10,10 +10,12 @@ import (
 // LoadConfig loads the database configuration from .env.config and
 // sets the DATABASE_URL environment variable used by InitDB.
 func LoadConfig() error {
-	// Load .env.config file if it exists
+	// Load .env.config file if it exists. Try current and parent directory.
 	if err := godotenv.Load(".env.config"); err != nil {
-		// It's okay if the file doesn't exist, as long as the variables are set in the environment
-		fmt.Printf("Warning: .env.config not found or could not be loaded: %v\n", err)
+		if err := godotenv.Load("../.env.config"); err != nil {
+			// It's okay if the file doesn't exist, as long as the variables are set in the environment
+			fmt.Printf("Warning: .env.config not found in current or parent directory\n")
+		}
 	}
 
 	user := os.Getenv("DB_USER")
