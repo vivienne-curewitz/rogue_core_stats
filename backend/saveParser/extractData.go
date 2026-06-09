@@ -107,6 +107,24 @@ func GetRunItems(playerString string, runID string) ([]types.Item, []types.Upgra
 	return retItems, retUps
 }
 
+func consolidateUpgrades(upgrades []types.Upgrade) []types.Upgrade {
+	m := make(map[string]types.Upgrade)
+	for _, u := range upgrades {
+		key := u.RunId + "|" + u.PlayerId + "|" + u.UpgradeId + "|" + u.Reference
+		if existing, ok := m[key]; ok {
+			existing.Quantity += u.Quantity
+			m[key] = existing
+		} else {
+			m[key] = u
+		}
+	}
+	res := make([]types.Upgrade, 0, len(m))
+	for _, v := range m {
+		res = append(res, v)
+	}
+	return res
+}
+
 func ExtractRunData(runString string) (bool, error) {
 	ctx := context.Background()
 	runId := GetRunID(runString)
@@ -133,6 +151,8 @@ func ExtractRunData(runString string) (bool, error) {
 		upgrades := GetRunUpgrades(player, runId)
 		items, itemUpgrades := GetRunItems(player, runId)
 		upgrades = slices.Concat(upgrades, itemUpgrades)
+		// consolidate upgrades to handle duplicates (e.g. same upgrade on same item)
+		upgrades = consolidateUpgrades(upgrades)
 		// write items
 		db.BatchWriteItems(ctx, items)
 		// write upgrades

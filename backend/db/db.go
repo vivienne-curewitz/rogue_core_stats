@@ -44,14 +44,14 @@ func createTables(ctx context.Context) error {
 			item_id TEXT NOT NULL,
 			quantity INTEGER NOT NULL DEFAULT 1,
 			item_link TEXT NOT NULL,
-			PRIMARY KEY (run_id, player_id, item_id)
+			PRIMARY KEY (run_id, player_id, item_id, item_link)
 		);`,
 		`CREATE TABLE IF NOT EXISTS items (
 			run_id TEXT NOT NULL,
 			player_id TEXT NOT NULL,
 			item_id TEXT NOT NULL,
 			reference TEXT NOT NULL,
-			PRIMARY KEY (run_id, player_id, item_id)
+			PRIMARY KEY (run_id, player_id, item_id, reference)
 		);`,
 		`CREATE TABLE IF NOT EXISTS run_info (
 			run_id TEXT NOT NULL,
@@ -124,7 +124,7 @@ func BatchWriteUpgrades(ctx context.Context, upgrades []types.Upgrade) error {
 	for _, u := range upgrades {
 		batch.Queue(`INSERT INTO upgrades (run_id, player_id, item_id, quantity, item_link) 
                      VALUES ($1, $2, $3, $4, $5) 
-                     ON CONFLICT (run_id, player_id, item_id) 
+                     ON CONFLICT (run_id, player_id, item_id, item_link) 
                      DO UPDATE SET quantity = upgrades.quantity + EXCLUDED.quantity`,
 			u.RunId, u.PlayerId, u.UpgradeId, u.Quantity, u.Reference)
 	}
@@ -146,7 +146,7 @@ func BatchWriteItems(ctx context.Context, items []types.Item) error {
 	for _, i := range items {
 		batch.Queue(`INSERT INTO items (run_id, player_id, item_id, reference) 
                      VALUES ($1, $2, $3, $4) 
-                     ON CONFLICT (run_id, player_id, item_id) DO NOTHING`,
+                     ON CONFLICT (run_id, player_id, item_id, reference) DO NOTHING`,
 			i.RunId, i.PlayerId, i.ItemId, i.Reference)
 	}
 
@@ -160,4 +160,40 @@ func BatchWriteItems(ctx context.Context, items []types.Item) error {
 		}
 	}
 	return nil
+}
+
+func GetUpgradesByRunID(ctx context.Context, runID string) ([]types.Upgrade, error) {
+	rows, err := Pool.Query(ctx, `SELECT run_id, player_id, item_id, quantity, item_link FROM upgrades WHERE run_id = $1`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var upgrades []types.Upgrade
+	for rows.Next() {
+		var u types.Upgrade
+		if err := rows.Scan(&u.RunId, &u.PlayerId, &u.UpgradeId, &u.Quantity, &u.Reference); err != nil {
+			return nil, err
+		}
+		upgrades = append(upgrades, u)
+	}
+	return upgrades, nil
+}
+
+func GetItemsByRunID(ctx context.Context, runID string) ([]types.Item, error) {
+	rows, err := Pool.Query(ctx, `SELECT run_id, player_id, item_id, reference FROM items WHERE run_id = $1`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []types.Item
+	for rows.Next() {
+		var i types.Item
+		if err := rows.Scan(&i.RunId, &i.PlayerId, &i.ItemId, &i.Reference); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, nil
 }
