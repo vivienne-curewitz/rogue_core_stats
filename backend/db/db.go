@@ -54,12 +54,27 @@ func createTables(ctx context.Context) error {
 			PRIMARY KEY (run_id, player_id, item_id, reference)
 		);`,
 		`CREATE TABLE IF NOT EXISTS run_info (
-			run_id TEXT NOT NULL,
 			player_id TEXT NOT NULL,
+			run_id TEXT NOT NULL,
 			character_id TEXT NOT NULL,
 			boss_id TEXT NOT NULL,
-			status TEXT NOT NULL,
-			PRIMARY KEY (run_id, player_id)
+			status BOOLEAN NOT NULL,
+			depth INTEGER NOT NULL DEFAULT 0,
+			player_damage REAL NOT NULL DEFAULT 0,
+			overkill_damage REAL NOT NULL DEFAULT 0,
+			player_kills INTEGER NOT NULL DEFAULT 0,
+			player_deaths INTEGER NOT NULL DEFAULT 0,
+			total_stages INTEGER NOT NULL DEFAULT 0,
+			completed_stages INTEGER NOT NULL DEFAULT 0,
+			runtime INTEGER NOT NULL DEFAULT 0,
+			player_rank INTEGER NOT NULL DEFAULT 0,
+			character_rank INTEGER NOT NULL DEFAULT 0,
+			character_stars INTEGER NOT NULL DEFAULT 0,
+			minerals_mined REAL NOT NULL DEFAULT 0,
+			max_armor REAL NOT NULL DEFAULT 0,
+			max_health REAL NOT NULL DEFAULT 0,
+			health_restored REAL NOT NULL DEFAULT 0,
+			PRIMARY KEY (player_id, run_id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS run_status (
 			run_id TEXT PRIMARY KEY,
@@ -92,6 +107,39 @@ func WriteRunStatus(ctx context.Context, status types.RunStatus) error {
 	return nil
 }
 
+func BatchWriteRunInfo(ctx context.Context, infos []types.RunOverview) error {
+	batch := &pgx.Batch{}
+	for _, info := range infos {
+		batch.Queue(`INSERT INTO run_info (
+			player_id, run_id, character_id, boss_id, status, depth, player_damage, overkill_damage, 
+			player_kills, player_deaths, total_stages, completed_stages, runtime, player_rank, 
+			character_rank, character_stars, minerals_mined, max_armor, max_health, health_restored
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		ON CONFLICT (player_id, run_id) DO UPDATE SET 
+			character_id = EXCLUDED.character_id, boss_id = EXCLUDED.boss_id, status = EXCLUDED.status,
+			depth = EXCLUDED.depth, player_damage = EXCLUDED.player_damage, overkill_damage = EXCLUDED.overkill_damage,
+			player_kills = EXCLUDED.player_kills, player_deaths = EXCLUDED.player_deaths, total_stages = EXCLUDED.total_stages,
+			completed_stages = EXCLUDED.completed_stages, runtime = EXCLUDED.runtime, player_rank = EXCLUDED.player_rank,
+			character_rank = EXCLUDED.character_rank, character_stars = EXCLUDED.character_stars,
+			minerals_mined = EXCLUDED.minerals_mined, max_armor = EXCLUDED.max_armor,
+			max_health = EXCLUDED.max_health, health_restored = EXCLUDED.health_restored`,
+			info.PlayerId, info.RunId, info.CharacterId, info.BossId, info.Status, info.Depth, info.PlayerDamage, info.OverkillDamage,
+			info.PlayerKills, info.PlayerDeaths, info.TotalStages, info.CompletedStages, info.Runtime, info.PlayerRank,
+			info.CharacterRank, info.CharacterStars, info.MineralsMined, info.MaxArmor, info.MaxHealth, info.HealthRestored)
+	}
+
+	br := Pool.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for range infos {
+		_, err := br.Exec()
+		if err != nil {
+			return fmt.Errorf("failed to execute batch insert for run_info: %w", err)
+		}
+	}
+	return nil
+}
+
 func RunExists(ctx context.Context, runId string) (bool, error) {
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM run_status WHERE run_id = $1)`
@@ -109,6 +157,7 @@ func DebugDropTables(ctx context.Context) error {
 		`DROP TABLE IF EXISTS run_status;`,
 		`DROP TABLE IF EXISTS items;`,
 		`DROP TABLE IF EXISTS upgrades;`,
+		`DROP TABLE IF EXISTS run_info;`,
 	}
 
 	for _, q := range queries {
@@ -196,4 +245,32 @@ func GetItemsByRunID(ctx context.Context, runID string) ([]types.Item, error) {
 		items = append(items, i)
 	}
 	return items, nil
+}
+
+func GetPlayerOverview(ctx context.Context, playerID string) ([]types.RunOverview, error) {
+	query := `SELECT 
+		player_id, run_id, character_id, boss_id, status, depth, player_damage, overkill_damage, 
+		player_kills, player_deaths, total_stages, completed_stages, runtime, player_rank, 
+		character_rank, character_stars, minerals_mined, max_armor, max_health, health_restored
+	FROM run_info WHERE player_id = $1`
+	rows, err := Pool.Query(ctx, query, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch player overview: %w", err)
+	}
+	defer rows.Close()
+
+	var overviews []types.RunOverview
+	for rows.Next() {
+		var o types.RunOverview
+		if err := rows.Scan(
+			&o.PlayerId, &o.RunId, &o.CharacterId, &o.BossId, &o.Status, &o.Depth, &o.PlayerDamage, &o.OverkillDamage,
+			&o.PlayerKills, &o.PlayerDeaths, &o.TotalStages, &o.CompletedStages, &o.Runtime, &o.PlayerRank,
+			&o.CharacterRank, &o.CharacterStars, &o.MineralsMined, &o.MaxArmor, &o.MaxHealth, &o.HealthRestored,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan run overview: %w", err)
+		}
+		overviews = append(overviews, o)
+	}
+
+	return overviews, nil
 }

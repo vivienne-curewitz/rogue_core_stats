@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -49,6 +51,43 @@ func GetRunID(runString string) string {
 
 func GetRunStatus(runString string) bool {
 	return gjson.Get(runString, "SharedInfo_0.MissionSuccess_0").Bool()
+}
+
+func GetRunOverview(runString string, localID int, RunId string, PlayerId string, Cid string) types.RunOverview {
+	si := gjson.Get(runString, "SharedInfo_0")
+	ri := gjson.Get(runString, "RunInfo_0")
+	pSearchStr := fmt.Sprintf("BasicCharacterStats_0.#(PlayerId_0==%d)", localID)
+	pi := si.Get(pSearchStr)
+	depth := ri.Get("RunDepth_0").String()
+	d2 := strings.Replace(depth, "ERunDepth::Depth", "", 1)
+	depthInt, err := strconv.Atoi(d2)
+	if err != nil {
+		log.Printf("Failed to parse depth from string: %s", depth)
+	}
+	day := si.Get("Day_0").Int()
+	month := si.Get("Month_0").Int()
+	year := si.Get("Year_0").Int()
+	return types.RunOverview{
+		RunId:           RunId,
+		PlayerId:        PlayerId,
+		Status:          si.Get("MissionSuccess_0").Bool(),
+		BossId:          "Unk",
+		Depth:           int(depthInt), // need to parse int here
+		CharacterId:     Cid,
+		PlayerDamage:    float32(pi.Get("TotalCappedDamage_0").Float()),
+		OverkillDamage:  float32(pi.Get("TotalOverkillDamage_0").Float()),
+		PlayerKills:     int32(pi.Get("TotalKills_0").Int()),
+		PlayerDeaths:    int32(pi.Get("TotalDeaths_0").Int()),
+		CompletedStages: int32(si.Get("CompletedStages_0").Int()),
+		Runtime:         int32(si.Get("MissionTime_0").Int()),
+		PlayerRank:      int32(pi.Get("PlayerRank_0").Int()),
+		CharacterRank:   int32(pi.Get("CharacterLevel_0").Int()),
+		CharacterStars:  int32(pi.Get("Stars_0").Int()),
+		MineralsMined:   float32(pi.Get("TotalMineralsMined_0").Float()),
+		MaxArmor:        float32(pi.Get("MaxArmor_0").Float()),
+		MaxHealth:       float32(pi.Get("MaxHealth_0").Float()),
+		HealthRestored:  float32(pi.Get("TotalHealthRestored_0").Float()),
+	}
 }
 
 func GetRunPlayers(runString string) []string {
@@ -125,6 +164,13 @@ func consolidateUpgrades(upgrades []types.Upgrade) []types.Upgrade {
 	return res
 }
 
+func GetPlayerIDs(player string) (int, string, string) {
+	localID := int(gjson.Get(player, "PlayerId_0").Int())
+	playerID := gjson.Get(player, "PlayerName_0").String()
+	characterID := gjson.Get(player, "PlayerCharacterId_0").String()
+	return localID, playerID, characterID
+}
+
 func ExtractRunData(runString string) (bool, error) {
 	ctx := context.Background()
 	runId := GetRunID(runString)
@@ -148,6 +194,8 @@ func ExtractRunData(runString string) (bool, error) {
 	// check if runId already exists in the database
 	players := GetRunPlayers(runString)
 	for _, player := range players {
+		localId, pid, cid := GetPlayerIDs(player)
+		runOverview := GetRunOverview(runString, localId, runId, pid, cid)
 		upgrades := GetRunUpgrades(player, runId)
 		items, itemUpgrades := GetRunItems(player, runId)
 		upgrades = slices.Concat(upgrades, itemUpgrades)
@@ -157,6 +205,8 @@ func ExtractRunData(runString string) (bool, error) {
 		db.BatchWriteItems(ctx, items)
 		// write upgrades
 		db.BatchWriteUpgrades(ctx, upgrades)
+		// write runOverview
+		db.BatchWriteRunInfo(ctx, []types.RunOverview{runOverview})
 	}
 	return true, nil
 }
