@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -67,6 +68,7 @@ func GetRunOverview(runString string, localID int, RunId string, PlayerId string
 	day := si.Get("Day_0").Int()
 	month := si.Get("Month_0").Int()
 	year := si.Get("Year_0").Int()
+	timestamp := time.Date(int(year), time.Month(month), int(day), 0, 0, 0, 0, time.UTC).Unix()
 	return types.RunOverview{
 		RunId:           RunId,
 		PlayerId:        PlayerId,
@@ -87,6 +89,7 @@ func GetRunOverview(runString string, localID int, RunId string, PlayerId string
 		MaxArmor:        float32(pi.Get("MaxArmor_0").Float()),
 		MaxHealth:       float32(pi.Get("MaxHealth_0").Float()),
 		HealthRestored:  float32(pi.Get("TotalHealthRestored_0").Float()),
+		Timestamp:       timestamp,
 	}
 }
 
@@ -209,4 +212,38 @@ func ExtractRunData(runString string) (bool, error) {
 		db.BatchWriteRunInfo(ctx, []types.RunOverview{runOverview})
 	}
 	return true, nil
+}
+
+func ReverseSaveRead(task types.SaveDataTask) {
+	jsonStr, err := ConvertUesaveToJSON(task.Data)
+	if err != nil {
+		// statuses -- requests id
+		log.Printf("Failed to decode save file: %v\n", err)
+	}
+	runs := GetRunHistoryEntries(jsonStr)
+	for i := len(runs) - 1; i >= 0; i -= 1 {
+		ExtractRunData(runs[i])
+	}
+}
+
+func SaveDataPipe(dataPipe chan types.SaveDataTask, statuses map[uuid.UUID]types.UploadStatus, ctx context.Context) {
+MainLoop:
+	for {
+		select {
+		case task := <-dataPipe:
+			func() {
+				jsonStr, err := ConvertUesaveToJSON(task.Data)
+				if err != nil {
+					// statuses -- requests id
+					log.Printf("Failed to decode save file: %v\n", err)
+				}
+				runs := GetRunHistoryEntries(jsonStr)
+				for i := len(runs) - 1; i >= 0; i -= 1 {
+					ExtractRunData(runs[i])
+				}
+			}()
+		case <-ctx.Done():
+			break MainLoop
+		}
+	}
 }

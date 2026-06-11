@@ -8,54 +8,26 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/vivienne-curewitz/rogue_core_stats/db"
+	"github.com/vivienne-curewitz/rogue_core_stats/types"
 )
 
-type UploadStatus int
-
-const (
-	UploadStatusPending UploadStatus = iota
-	UploadStatusInProgress
-	UploadStatusCompleted
-	UploadStatusFailed
-)
-
-func (s UploadStatus) String() string {
-	switch s {
-	case UploadStatusPending:
-		return "Pending"
-	case UploadStatusInProgress:
-		return "In Progress"
-	case UploadStatusCompleted:
-		return "Completed"
-	case UploadStatusFailed:
-		return "Failed"
-	default:
-		return "Unknown"
-	}
-}
-
-type SaveDataTask struct {
-	Data []byte
-	ID   uuid.UUID
-}
-
-func uploadHandlerFactory(status map[uuid.UUID]UploadStatus, dataPipe chan SaveDataTask) http.HandlerFunc {
+func uploadHandlerFactory(status map[uuid.UUID]types.UploadStatus, dataPipe chan types.SaveDataTask) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Handle the upload logic here
 		requestID := uuid.New()
-		status[requestID] = UploadStatusPending
+		status[requestID] = types.UploadStatusPending
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "Could not read request body", http.StatusBadRequest)
 			return
 		}
-		dataPipe <- SaveDataTask{Data: data, ID: requestID}
+		dataPipe <- types.SaveDataTask{Data: data, ID: requestID}
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte(requestID.String()))
 	}
 }
 
-func uploadStatusHandlerFactory(status map[uuid.UUID]UploadStatus) http.HandlerFunc {
+func uploadStatusHandlerFactory(status map[uuid.UUID]types.UploadStatus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Handle the status check logic here
 		requestIDStr := r.URL.Query().Get("id")
@@ -77,7 +49,7 @@ func uploadStatusHandlerFactory(status map[uuid.UUID]UploadStatus) http.HandlerF
 	}
 }
 
-func UploadHandlerFactory(status map[uuid.UUID]UploadStatus, dataPipe chan SaveDataTask) http.Handler {
+func UploadHandlerFactory(status map[uuid.UUID]types.UploadStatus, dataPipe chan types.SaveDataTask) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -104,7 +76,7 @@ func OverviewHandlerFactory() http.Handler {
 			http.Error(w, fmt.Sprintf("Failed to fetch overview: %v", err), http.StatusInternalServerError)
 			return
 		}
-		
+
 		resJSON, err := json.Marshal(overviews)
 		if err != nil {
 			http.Error(w, "Failed to marshal response", http.StatusInternalServerError)
