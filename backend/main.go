@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"log"
+	"sync"
 
 	"github.com/vivienne-curewitz/rogue_core_stats/db"
+	"github.com/vivienne-curewitz/rogue_core_stats/handlers"
 )
 
 func initDb() {
@@ -19,6 +21,18 @@ func initDb() {
 }
 
 func main() {
+	ctx := context.Background()
+	wg := &sync.WaitGroup{}
 	log.Printf("Running Rogue Core Stats Server\n")
-	initDb()
+	dbErr := db.LoadConfig()
+	if dbErr != nil {
+		log.Fatalf("Failed to load db data: %s\n", dbErr)
+	}
+	dbErr = db.InitDB(ctx)
+	if dbErr != nil {
+		log.Fatalf("Failed to init database: %s\n", dbErr)
+	}
+	wg.Add(1)
+	go handlers.StartHandlers(wg)
+	wg.Wait()
 }

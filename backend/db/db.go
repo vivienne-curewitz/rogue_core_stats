@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/jackc/pgx/v5"
@@ -146,6 +147,7 @@ func BatchWriteRunInfo(ctx context.Context, infos []types.RunOverview) error {
 
 func RunExists(ctx context.Context, runId string) (bool, error) {
 	var exists bool
+	log.Printf("Checking if run exists with ID: %s", runId)
 	query := `SELECT EXISTS(SELECT 1 FROM run_status WHERE run_id = $1)`
 	err := Pool.QueryRow(ctx, query, runId).Scan(&exists)
 	if err != nil {

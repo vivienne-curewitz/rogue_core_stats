@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -11,7 +12,7 @@ import (
 	"github.com/vivienne-curewitz/rogue_core_stats/types"
 )
 
-func uploadHandlerFactory(status map[uuid.UUID]types.UploadStatus, dataPipe chan types.SaveDataTask) http.HandlerFunc {
+func UploadHandlerFactory(status map[uuid.UUID]types.UploadStatus, dataPipe chan types.SaveDataTask) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Handle the upload logic here
 		requestID := uuid.New()
@@ -23,11 +24,17 @@ func uploadHandlerFactory(status map[uuid.UUID]types.UploadStatus, dataPipe chan
 		}
 		dataPipe <- types.SaveDataTask{Data: data, ID: requestID}
 		w.WriteHeader(http.StatusAccepted)
-		w.Write([]byte(requestID.String()))
+		bts, err := w.Write([]byte(requestID.String()))
+		if err != nil {
+			log.Printf("Failed to write response to upload: %v\n", err)
+		}
+		if bts == 0 {
+			log.Println("Wrote 0 bytes to response for request ID")
+		}
 	}
 }
 
-func uploadStatusHandlerFactory(status map[uuid.UUID]types.UploadStatus) http.HandlerFunc {
+func UploadStatusHandlerFactory(status map[uuid.UUID]types.UploadStatus) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Handle the status check logic here
 		requestIDStr := r.URL.Query().Get("id")
@@ -49,21 +56,8 @@ func uploadStatusHandlerFactory(status map[uuid.UUID]types.UploadStatus) http.Ha
 	}
 }
 
-func UploadHandlerFactory(status map[uuid.UUID]types.UploadStatus, dataPipe chan types.SaveDataTask) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			uploadHandlerFactory(status, dataPipe)(w, r)
-		case http.MethodGet:
-			uploadStatusHandlerFactory(status)(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-}
-
-func OverviewHandlerFactory() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func OverviewHandlerFactory() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		// Handle the game overview logic here
 		playerID := r.URL.Query().Get("player_id")
 		if playerID == "" {
@@ -86,5 +80,5 @@ func OverviewHandlerFactory() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(resJSON)
-	})
+	}
 }

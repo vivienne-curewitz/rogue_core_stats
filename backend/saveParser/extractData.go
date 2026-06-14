@@ -236,10 +236,14 @@ MainLoop:
 				if err != nil {
 					// statuses -- requests id
 					log.Printf("Failed to decode save file: %v\n", err)
-				}
-				runs := GetRunHistoryEntries(jsonStr)
-				for i := len(runs) - 1; i >= 0; i -= 1 {
-					ExtractRunData(runs[i])
+					statuses[task.ID] = types.UploadStatusFailed
+				} else {
+					statuses[task.ID] = types.UploadStatusInProgress
+					runs := GetRunHistoryEntries(jsonStr)
+					for i := len(runs) - 1; i >= 0; i -= 1 {
+						ExtractRunData(runs[i])
+					}
+					statuses[task.ID] = types.UploadStatusCompleted
 				}
 			}()
 		case <-ctx.Done():
