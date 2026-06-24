@@ -18,9 +18,13 @@ func StartHandlers(wg *sync.WaitGroup) {
 	// start save parser thread
 	go saveparser.SaveDataPipe(dataPipe, statuses, ctx)
 	// stats handle funcs here
-	http.HandleFunc("/saveUpload", UploadHandlerFactory(statuses, dataPipe))
-	http.HandleFunc("/saveUploadStatus", UploadStatusHandlerFactory(statuses))
-	http.HandleFunc("/overview", OverviewHandlerFactory())
+	http.HandleFunc("/api/saveUpload", UploadHandlerFactory(statuses, dataPipe))
+	http.HandleFunc("/api/saveUploadStatus", UploadStatusHandlerFactory(statuses))
+	http.HandleFunc("/api/overview", OverviewHandlerFactory())
+
+	// handle the assets file
+	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets/"))))
+
 	http.ListenAndServe("0.0.0.0:8080", nil)
 	log.Println("Server shutting Down")
 	wg.Done()
