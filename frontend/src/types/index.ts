@@ -94,6 +94,13 @@ export interface RunOverview {
   Timestamp: Int;
 }
 
+export interface GameAsset {
+  UUID: string;
+  Name: string;
+  Description: string;
+  Asset: string;
+}
+
 export enum UploadStatus {
   Pending = 0,
   InProgress = 1,
@@ -206,6 +213,16 @@ export function parseRunOverview(raw: Record<string, unknown> | null | undefined
   };
 }
 
+export function parseGameAsset(raw: Record<string, unknown> | null | undefined): GameAsset {
+  const r = raw ?? {};
+  return {
+    UUID: String(r.UUID ?? ''),
+    Name: String(r.Name ?? ''),
+    Description: String(r.Description ?? ''),
+    Asset: String(r.Asset ?? ''),
+  }
+
+}
 /**
  * Converts a raw object to a typed SaveDataTask, ensuring UUID is parsed.
  */

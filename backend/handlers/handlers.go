@@ -22,6 +22,9 @@ func StartHandlers(wg *sync.WaitGroup) {
 	http.HandleFunc("/api/saveUploadStatus", UploadStatusHandlerFactory(statuses))
 	http.HandleFunc("/api/overview", OverviewHandlerFactory())
 
+	// handle various db stuff
+	http.HandleFunc("/api/getItemOverview", HandleItemOverview)
+
 	// handle the assets file
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets/"))))
 

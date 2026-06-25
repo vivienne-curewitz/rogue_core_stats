@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vivienne-curewitz/rogue_core_stats/types"
@@ -87,6 +89,12 @@ func createTables(ctx context.Context) error {
 			player_id TEXT NOT NULL,
 			total_damage BIGINT NOT NULL DEFAULT 0,
 			PRIMARY KEY (run_id, player_id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS assets (
+			uuid TEXT NOT NULL PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL,
+			asset TEXT NOT NULL
 		);`,
 	}
 
@@ -251,6 +259,72 @@ func GetItemsByRunID(ctx context.Context, runID string) ([]types.Item, error) {
 		items = append(items, i)
 	}
 	return items, nil
+}
+
+func GetItemsByRunIDPlayerID(ctx context.Context, runID string, playerID string) ([]types.Item, error) {
+	rows, err := Pool.Query(ctx, `SELECT run_id, player_id, item_id, reference FROM items WHERE run_id = $1 AND player_id = $2`, runID, playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []types.Item
+	for rows.Next() {
+		var i types.Item
+		if err := rows.Scan(&i.RunId, &i.PlayerId, &i.ItemId, &i.Reference); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, nil
+}
+
+func genericAsset(uid uuid.UUID) types.GameAsset {
+	return types.GameAsset{
+		UUID:        uid,
+		Name:        "GenericAsset",
+		Description: "Asset Not Found",
+		Asset:       "hammercaster.webp",
+	}
+}
+
+func GetAssetsByRunIDPlayerID(ctx context.Context, runID string, playerID string) ([]types.GameAsset, error) {
+	rows, err := Pool.Query(ctx, `SELECT item_id FROM items WHERE run_id = $1 AND player_id = $2`, runID, playerID)
+	if err != nil {
+		log.Printf("Failed to retreive items: %v\n", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var i string
+		if err := rows.Scan(&i); err != nil {
+			return nil, err
+		}
+		ids = append(ids, i)
+	}
+	assetRows, err := Pool.Query(ctx, `SELECT * FROM assets WHERE uuid = ANY($1)`, ids)
+	if err != nil {
+		log.Printf("Failed to retreive items: %v\n", err)
+		return nil, err
+	}
+	defer assetRows.Close()
+	var assets []types.GameAsset
+	for assetRows.Next() {
+		var ga types.GameAsset
+		if err = assetRows.Scan(&ga.UUID, &ga.Name, &ga.Description, &ga.Asset); err != nil {
+			return nil, err
+		}
+		assets = append(assets, ga)
+	}
+	for _, id := range ids {
+		uid, _ := uuid.Parse(id)
+		if !slices.ContainsFunc(assets, func(ga types.GameAsset) bool { return ga.UUID == uid }) {
+			assets = append(assets, genericAsset(uid))
+		}
+	}
+	return assets, nil
 }
 
 func GetPlayerOverview(ctx context.Context, playerID string) ([]types.RunOverview, error) {

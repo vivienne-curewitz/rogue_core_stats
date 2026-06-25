@@ -134,30 +134,24 @@ function formatDate(timestamp: number): string {
       <div class="stats-card">
         <div class="stats-label">Total Runs</div>
         <div class="stats-value">{{ totalRuns }}</div>
-        <div class="stats-footer">Missions Logged</div>
       </div>
       <div class="stats-card">
-        <div class="stats-label">Success Rate</div>
+        <div class="stats-label">Win Rate</div>
         <div class="stats-value success">{{ winRate }}%</div>
-        <div class="stats-footer">Survival Percentage</div>
       </div>
       <div class="stats-card">
-        <div class="stats-label">Total Kills</div>
+        <div class="stats-label">Void Spawn Killed</div>
         <div class="stats-value danger">{{ totalKills }}</div>
-        <div class="stats-footer">Bugs Squashed</div>
       </div>
       <div class="stats-card">
-        <div class="stats-label">Minerals Mined</div>
+        <div class="stats-label">Expenite Mined</div>
         <div class="stats-value warning">{{ totalMinerals }}</div>
-        <div class="stats-footer">Units Secured</div>
       </div>
     </div>
 
     <!-- Main Content Panel -->
-    <div class="data-panel">
-      <li v-for="rd in stats">
-        <RunOverviewComponent :rdata='rd'/>
-      </li>
+    <div>
+      <RunOverviewComponent v-for="rd in stats" :rdata='rd'/>
     </div>
   </main>
 </template>
@@ -304,16 +298,6 @@ function formatDate(timestamp: number): string {
 .stats-footer {
   font-size: 0.8rem;
   color: var(--text-muted);
-}
-
-/* Data Panel */
-.data-panel {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 1.25rem;
-  padding: 1.75rem;
-  box-shadow: var(--shadow-md);
-  margin-bottom: 2rem;
 }
 
 .panel-header {
