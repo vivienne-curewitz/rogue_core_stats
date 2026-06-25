@@ -34,14 +34,16 @@
 </script>
 
 <template>
-    <div class="equipped" v-if="weaponData.length != 0">
-        <div v-for="wd in weaponData" class=".asset">
-            <img :src="assetPath + wd.Asset" width="100%" height="90%">
-            <p>{{ wd.Name }}</p>
+    <div class="woc">
+        <div class="equipped" v-if="weaponData.length != 0">
+            <div v-for="wd in weaponData" class="asset">
+                <img :src="assetPath + wd.Asset" width="100%" height="90%">
+                <p>{{ wd.Name }}</p>
+            </div>
         </div>
-    </div>
-    <div v-else>
-        <p>Loading</p>
+        <div v-else>
+            <p>Loading</p>
+        </div>
     </div>
 
 </template>
@@ -52,6 +54,7 @@
         flex-direction: row;
         height: 100%;
         width: 30%;
+        gap: 3%;
     }
 
     .asset {
@@ -59,5 +62,9 @@
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        border: solid thin grey; 
+    }
+    .woc {
+        width: 65%;
     }
 </style>

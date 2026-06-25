@@ -24,18 +24,14 @@ const runTimeStr = computed(() => {
 <template>
   <div class="data-panel">
     <div class="data-panel-internal">
+      <ClassTagComponent className="DwarfGuy"/>
       <div class="data-panel-section">
-        <ClassTagComponent className="DwarfGuy"/>
+        <h2 v-if="rdata.Status" class="victory">{{ `Victory -- ${runTimeStr}` }}</h2>
+        <h2 v-else class="defeat">Defeat -- {{ runTimeStr }}</h2>
+        <p>Damage: {{ rdata.PlayerDamage }} Overkill: {{ rdata.OverkillDamage }}</p>
+        <p>Killed: {{ rdata.PlayerKills }} Downed: {{ rdata.PlayerDeaths }} </p>
       </div>
-      <div class="data-panel-section">
-        <h2 v-if="rdata.Status">{{ `Victory -- ${runTimeStr}` }}</h2>
-        <h2 v-else>Defeat -- {{ runTimeStr }}</h2>
-        <p>{{ rdata.PlayerDamage }} // {{ rdata.OverkillDamage }}</p>
-        <p>{{ rdata.PlayerKills }} // {{ rdata.PlayerDeaths }} </p>
-      </div>
-      <div class="data-panel-section">
-        <WeaponOverviewComponent :-run-id="rdata.RunId" :-player-id="rdata.PlayerId" />
-      </div>
+      <WeaponOverviewComponent :-run-id="rdata.RunId" :-player-id="rdata.PlayerId" />
     </div>
   </div>
 </template>
@@ -70,8 +66,16 @@ const runTimeStr = computed(() => {
   .data-panel-section {
     display: flex;
     flex-direction: column;
-    width: 30%;
-    justify-content: center;
-    align-items: center;
+    width: 20%;
+    justify-content: left;
+    align-items: left;
+  }
+
+  .victory {
+    color: green;
+  }
+  
+  .defeat {
+    color: red;
   }
 </style>
