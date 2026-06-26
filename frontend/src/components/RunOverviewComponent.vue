@@ -1,35 +1,58 @@
 <script setup lang="ts">
 // import run overview types and store stuff here
-import { computed } from 'vue';
-import { type RunOverview } from "../types/index.ts"
-import ClassTagComponent from "@/components/ClassTagComponent.vue"
-import WeaponOverviewComponent from "./WeaponOverviewComponent.vue";
+import { computed } from 'vue'
+import { type RunOverview } from '../types/index.ts'
+import ClassTagComponent from '@/components/ClassTagComponent.vue'
+import WeaponOverviewComponent from './WeaponOverviewComponent.vue'
 
 // input expects data from the run
 const props = defineProps<{
   rdata: RunOverview
-}>();
+}>()
+
+const formatNumber = (val: number): string => {
+  val = Math.floor(val)
+  const accum = []
+  while (val > 1000) {
+    accum.push(String(val % 1000).padStart(3, '0'))
+    val = Math.floor(val / 1000)
+  }
+  accum.push(val)
+  accum.reverse()
+  return accum.join(',')
+}
+
+const rdamage = computed(() => {
+  return formatNumber(props.rdata.PlayerDamage)
+})
+
+const roverkill = computed(() => {
+  return formatNumber(props.rdata.OverkillDamage)
+})
 
 const runTimeStr = computed(() => {
-  const minutes = Math.floor(props.rdata.Runtime / 60);
-  const seconds = props.rdata.Runtime % 60;
-  
+  const minutes = Math.floor(props.rdata.Runtime / 60)
+  const seconds = props.rdata.Runtime % 60
+
   // Pad seconds so 9 seconds becomes "09" instead of "9"
-  const paddedSeconds = String(seconds).padStart(2, '0'); 
-  
-  return `${minutes}:${paddedSeconds}`;
-});
+  const paddedSeconds = String(seconds).padStart(2, '0')
+
+  return `${minutes}:${paddedSeconds}`
+})
 </script>
 
 <template>
   <div class="data-panel">
     <div class="data-panel-internal">
-      <ClassTagComponent className="DwarfGuy"/>
+      <ClassTagComponent className="DwarfGuy" />
       <div class="data-panel-section">
         <h2 v-if="rdata.Status" class="victory">{{ `Victory -- ${runTimeStr}` }}</h2>
         <h2 v-else class="defeat">Defeat -- {{ runTimeStr }}</h2>
-        <p>Damage: {{ rdata.PlayerDamage }} Overkill: {{ rdata.OverkillDamage }}</p>
-        <p>Killed: {{ rdata.PlayerKills }} Downed: {{ rdata.PlayerDeaths }} </p>
+        <div>
+          <span>Damage: {{ rdamage }}</span>
+          <span class="overkill"> ({{ roverkill }})</span>
+        </div>
+        <p>Killed: {{ rdata.PlayerKills }} Downed: {{ rdata.PlayerDeaths }}</p>
       </div>
       <WeaponOverviewComponent :-run-id="rdata.RunId" :-player-id="rdata.PlayerId" />
     </div>
@@ -37,45 +60,54 @@ const runTimeStr = computed(() => {
 </template>
 
 <style>
-  /* Data Panel */
-  .data-panel {
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    border-radius: 1.25rem;
-    padding: 1.75rem;
-    box-shadow: var(--shadow-md);
-    width: 100%;
-    height: 100%;
-    margin-bottom: 2rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 5%;
-  }
+/* Data Panel */
+.data-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  box-shadow: var(--shadow-md);
+  width: 100%;
+  height: 100%;
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5%;
+}
 
-  .data-panel-internal {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    height: 100%;
-    gap: 5%;
-  }
+.data-panel-internal {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 5%;
+}
 
-  .data-panel-section {
-    display: flex;
-    flex-direction: column;
-    width: 20%;
-    justify-content: left;
-    align-items: left;
-  }
+.data-panel-section {
+  display: flex;
+  flex-direction: column;
+  width: 30%;
+  justify-content: left;
+  align-items: left;
+}
 
-  .victory {
-    color: green;
-  }
-  
-  .defeat {
-    color: red;
-  }
+.victory {
+  color: green;
+}
+
+.defeat {
+  color: red;
+}
+
+.overkill {
+  color: orange;
+}
+
+.rowdiv {
+  display: flex;
+  direction: row;
+}
 </style>
