@@ -24,6 +24,7 @@ func StartHandlers(wg *sync.WaitGroup) {
 
 	// handle various db stuff
 	http.HandleFunc("/api/getItemOverview", HandleItemOverview)
+	http.HandleFunc("/api/getUpgrades", HandleGetUpgrades)
 
 	// handle the assets file
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("./assets/"))))

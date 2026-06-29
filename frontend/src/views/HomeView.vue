@@ -2,60 +2,14 @@
 import { ref, onMounted, computed } from 'vue'
 import { parseRunOverview, type RunOverview } from '../types'
 import RunOverviewComponent from '@/components/RunOverviewComponent.vue'
+import RunDetailComponent from '@/components/RunDetailComponent.vue'
 
 const loading = ref(false)
 const error = ref<string | null>(null)
 const stats = ref<RunOverview[]>([])
 const selectedPlayer = ref('Danger')
 
-const mockStats = ref<RunOverview[]>([
-  parseRunOverview({
-    RunId: '6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b',
-    PlayerId: 'Danger',
-    Status: true,
-    BossId: 'Glyphid Dreadnought',
-    Depth: 5,
-    CharacterId: 'Gunner',
-    PlayerDamage: 12450.5,
-    OverkillDamage: 2341.2,
-    PlayerKills: 382,
-    PlayerDeaths: 0,
-    TotalStages: 5,
-    CompletedStages: 5,
-    Runtime: 1842,
-    PlayerRank: 18,
-    CharacterRank: 25,
-    CharacterStars: 3,
-    MineralsMined: 452.8,
-    MaxArmor: 85.0,
-    MaxHealth: 150.0,
-    HealthRestored: 75.5,
-    Timestamp: Math.floor(Date.now() / 1000) - 86400,
-  }),
-  parseRunOverview({
-    RunId: '05a413c24d852a37340b0804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b',
-    PlayerId: 'Danger',
-    Status: false,
-    BossId: 'Mactera Plague',
-    Depth: 3,
-    CharacterId: 'Scout',
-    PlayerDamage: 8432.1,
-    OverkillDamage: 942.8,
-    PlayerKills: 195,
-    PlayerDeaths: 1,
-    TotalStages: 5,
-    CompletedStages: 3,
-    Runtime: 1205,
-    PlayerRank: 18,
-    CharacterRank: 12,
-    CharacterStars: 1,
-    MineralsMined: 289.4,
-    MaxArmor: 60.0,
-    MaxHealth: 120.0,
-    HealthRestored: 40.0,
-    Timestamp: Math.floor(Date.now() / 1000) - 172800,
-  })
-])
+const selectedRdata = ref<RunOverview | null>(null)
 
 async function fetchStats() {
   loading.value = true
@@ -66,14 +20,8 @@ async function fetchStats() {
       const data = await response.json()
       if (Array.isArray(data) && data.length > 0) {
         stats.value = data.map(parseRunOverview)
-      } else {
-        stats.value = mockStats.value
       }
-    } else {
-      stats.value = mockStats.value
     }
-  } catch {
-    stats.value = mockStats.value
   } finally {
     loading.value = false
   }
@@ -83,29 +31,25 @@ onMounted(() => {
   fetchStats()
 })
 
+const onRunClicked = (rd: RunOverview) => {
+  selectedRdata.value = rd
+}
+
+const onCloseRunDetail = () => {
+  selectedRdata.value = null
+}
+
 const totalRuns = computed(() => stats.value.length)
 const winRate = computed(() => {
   if (stats.value.length === 0) return 0
-  const wins = stats.value.filter(r => r.Status).length
+  const wins = stats.value.filter((r) => r.Status).length
   return Math.round((wins / stats.value.length) * 100)
 })
 
 const totalKills = computed(() => stats.value.reduce((acc, r) => acc + Number(r.PlayerKills), 0))
-const totalMinerals = computed(() => stats.value.reduce((acc, r) => acc + Number(r.MineralsMined), 0).toFixed(1))
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}m ${secs}s`
-}
-
-function formatDate(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  })
-}
+const totalMinerals = computed(() =>
+  stats.value.reduce((acc, r) => acc + Number(r.MineralsMined), 0).toFixed(1),
+)
 </script>
 
 <template>
@@ -119,8 +63,13 @@ function formatDate(timestamp: number): string {
       <div class="player-selector">
         <label for="player-input">Miner ID</label>
         <div class="input-group">
-          <input id="player-input" v-model="selectedPlayer" type="text" placeholder="Miner Name"
-            @keyup.enter="fetchStats" />
+          <input
+            id="player-input"
+            v-model="selectedPlayer"
+            type="text"
+            placeholder="Miner Name"
+            @keyup.enter="fetchStats"
+          />
           <button @click="fetchStats" :disabled="loading">
             <span v-if="loading">Syncing...</span>
             <span v-else>Sync</span>
@@ -150,8 +99,16 @@ function formatDate(timestamp: number): string {
     </div>
 
     <!-- Main Content Panel -->
-    <div>
-      <RunOverviewComponent v-for="rd in stats" :rdata='rd'/>
+    <div v-if="!selectedRdata">
+      <RunOverviewComponent
+        v-for="rd in stats"
+        :rdata="rd"
+        :key="rd.RunId"
+        @click="onRunClicked(rd)"
+      />
+    </div>
+    <div v-else>
+      <RunDetailComponent :rdata="selectedRdata" @CloseRunDetail="onCloseRunDetail" />
     </div>
   </main>
 </template>
@@ -231,7 +188,9 @@ function formatDate(timestamp: number): string {
   border-radius: 0.5rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .input-group button:hover:not(:disabled) {
@@ -258,7 +217,10 @@ function formatDate(timestamp: number): string {
   border-radius: 1rem;
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .stats-card:hover {
@@ -388,55 +350,6 @@ td {
 
 tr:hover td {
   background: rgba(255, 255, 255, 0.02);
-}
-
-/* Badges */
-.status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.6rem;
-  border-radius: 9999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.status-badge.survival {
-  background: var(--secondary-glow);
-  color: var(--secondary);
-}
-
-.status-badge.mia {
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
-}
-
-.class-badge {
-  display: inline-block;
-  padding: 0.25rem 0.6rem;
-  border-radius: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.class-badge.gunner {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-}
-
-.class-badge.scout {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-}
-
-.class-badge.engineer {
-  background: rgba(236, 72, 153, 0.1);
-  color: #ec4899;
-}
-
-.class-badge.driller {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
 }
 
 @media (max-width: 768px) {

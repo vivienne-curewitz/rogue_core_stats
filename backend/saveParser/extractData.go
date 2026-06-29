@@ -127,11 +127,13 @@ func GetRunItems(playerString string, runID string) ([]types.Item, []types.Upgra
 	for i, ur := range itemsRet {
 		itemID := ur.Get("Unlock_0")
 		iref := uuid.New().String()
+		slot := ur.Get("SelectedSlot_0.SlotIndex").Int()
 		retItems[i] = types.Item{
-			RunId:     runID,
-			PlayerId:  name.String(),
-			ItemId:    itemID.String(),
-			Reference: iref,
+			RunId:        runID,
+			PlayerId:     name.String(),
+			ItemId:       itemID.String(),
+			Reference:    iref,
+			EquippedSlot: int(slot),
 		}
 		itemUpgrades := ur.Get("Attributes_0").Array()
 		for _, iu := range itemUpgrades {

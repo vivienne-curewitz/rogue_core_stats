@@ -4,23 +4,12 @@ import { computed } from 'vue'
 import { type RunOverview } from '../types/index.ts'
 import ClassTagComponent from '@/components/ClassTagComponent.vue'
 import WeaponOverviewComponent from './WeaponOverviewComponent.vue'
+import { formatNumber } from '@/utils/utils.ts'
 
 // input expects data from the run
 const props = defineProps<{
   rdata: RunOverview
 }>()
-
-const formatNumber = (val: number): string => {
-  val = Math.floor(val)
-  const accum = []
-  while (val > 1000) {
-    accum.push(String(val % 1000).padStart(3, '0'))
-    val = Math.floor(val / 1000)
-  }
-  accum.push(val)
-  accum.reverse()
-  return accum.join(',')
-}
 
 const rdamage = computed(() => {
   return formatNumber(props.rdata.PlayerDamage)

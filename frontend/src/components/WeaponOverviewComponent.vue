@@ -9,7 +9,7 @@ const props = defineProps<{
   PlayerId: string
 }>()
 
-const consaponData = ref<GameAsset[]>([])
+const weaponData = ref<GameAsset[]>([])
 
 const fetchWeaponData = () => {
   fetch(`/api/getItemOverview?PlayerId=${props.PlayerId}&RunId=${props.RunId}`)
@@ -37,7 +37,7 @@ const assetPath = '/assets/'
 <template>
   <div class="woc">
     <div class="equipped" v-if="weaponData.length != 0">
-      <div v-for="wd in weaponData" class="asset">
+      <div v-for="wd in weaponData" class="asset" :key="wd.UUID">
         <img :src="assetPath + wd.Asset" width="100%" height="90%" />
         <p>{{ wd.Name }}</p>
       </div>

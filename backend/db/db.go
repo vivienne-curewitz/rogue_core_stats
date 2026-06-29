@@ -54,6 +54,7 @@ func createTables(ctx context.Context) error {
 			player_id TEXT NOT NULL,
 			item_id TEXT NOT NULL,
 			reference TEXT NOT NULL,
+			equipped_slot INTEGER NOT NULL DEFAULT -1,
 			PRIMARY KEY (run_id, player_id, item_id, reference)
 		);`,
 		`CREATE TABLE IF NOT EXISTS run_info (
@@ -243,6 +244,58 @@ func GetUpgradesByRunID(ctx context.Context, runID string) ([]types.Upgrade, err
 	return upgrades, nil
 }
 
+func GetUpgradesByRunIDPlayerID(ctx context.Context, runID string, playerID string) ([]types.GameAsset, error) {
+	rows, err := Pool.Query(ctx, `SELECT item_id, quantity, item_link FROM upgrades WHERE run_id = $1 AND player_id = $2`, runID, playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	var refs []string
+	var counts []int
+	for rows.Next() {
+		var i string
+		var ref string
+		var count int
+		if err := rows.Scan(&i, &count, &ref); err != nil {
+			return nil, err
+		}
+		ids = append(ids, i)
+		refs = append(refs, ref)
+		counts = append(counts, count)
+	}
+	assetRows, err := Pool.Query(ctx, `SELECT * FROM assets WHERE uuid = ANY($1)`, ids)
+	if err != nil {
+		log.Printf("Failed to retreive items: %v\n", err)
+		return nil, err
+	}
+	defer assetRows.Close()
+	assets := make([]types.GameAsset, len(ids))
+	var assetsInDB []types.GameAsset
+	for assetRows.Next() {
+		var ga types.GameAsset
+		if err = assetRows.Scan(&ga.UUID, &ga.Name, &ga.Description, &ga.Asset); err != nil {
+			return nil, err
+		}
+		assetsInDB = append(assetsInDB, ga)
+	}
+	for ai, id := range ids {
+		uid, _ := uuid.Parse(id)
+		nextInd := slices.IndexFunc(assetsInDB, func(ga types.GameAsset) bool { return ga.UUID == uid })
+		if nextInd == -1 {
+			assets[ai] = genericAsset(uid)
+		} else {
+			assets[ai] = assetsInDB[nextInd]
+		}
+		assets[ai].EquippedSlot = -1
+		assets[ai].Reference = refs[ai]
+		assets[ai].Quantity = counts[ai]
+
+	}
+	return assets, nil
+}
+
 func GetItemsByRunID(ctx context.Context, runID string) ([]types.Item, error) {
 	rows, err := Pool.Query(ctx, `SELECT run_id, player_id, item_id, reference FROM items WHERE run_id = $1`, runID)
 	if err != nil {
@@ -262,19 +315,18 @@ func GetItemsByRunID(ctx context.Context, runID string) ([]types.Item, error) {
 }
 
 func GetItemsByRunIDPlayerID(ctx context.Context, runID string, playerID string) ([]types.Item, error) {
-	rows, err := Pool.Query(ctx, `SELECT run_id, player_id, item_id, reference FROM items WHERE run_id = $1 AND player_id = $2`, runID, playerID)
+	rows, err := Pool.Query(ctx, `SELECT run_id, player_id, item_id, reference, equipped_slot  FROM items WHERE run_id = $1 AND player_id = $2`, runID, playerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
 	var items []types.Item
 	for rows.Next() {
-		var i types.Item
-		if err := rows.Scan(&i.RunId, &i.PlayerId, &i.ItemId, &i.Reference); err != nil {
+		var it types.Item
+		if err := rows.Scan(&it.RunId, &it.PlayerId, &it.ItemId, &it.Reference, &it.EquippedSlot); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, it)
 	}
 	return items, nil
 }
@@ -289,7 +341,7 @@ func genericAsset(uid uuid.UUID) types.GameAsset {
 }
 
 func GetAssetsByRunIDPlayerID(ctx context.Context, runID string, playerID string) ([]types.GameAsset, error) {
-	rows, err := Pool.Query(ctx, `SELECT item_id FROM items WHERE run_id = $1 AND player_id = $2`, runID, playerID)
+	rows, err := Pool.Query(ctx, `SELECT item_id, equipped_slot, reference FROM items WHERE run_id = $1 AND player_id = $2`, runID, playerID)
 	if err != nil {
 		log.Printf("Failed to retreive items: %v\n", err)
 		return nil, err
@@ -297,12 +349,18 @@ func GetAssetsByRunIDPlayerID(ctx context.Context, runID string, playerID string
 	defer rows.Close()
 
 	var ids []string
+	var slots []int
+	var refs []string
 	for rows.Next() {
 		var i string
-		if err := rows.Scan(&i); err != nil {
+		var s int
+		var ref string
+		if err := rows.Scan(&i, &s, &ref); err != nil {
 			return nil, err
 		}
 		ids = append(ids, i)
+		slots = append(slots, s)
+		refs = append(refs, ref)
 	}
 	assetRows, err := Pool.Query(ctx, `SELECT * FROM assets WHERE uuid = ANY($1)`, ids)
 	if err != nil {
@@ -310,19 +368,26 @@ func GetAssetsByRunIDPlayerID(ctx context.Context, runID string, playerID string
 		return nil, err
 	}
 	defer assetRows.Close()
-	var assets []types.GameAsset
+	assets := make([]types.GameAsset, len(ids))
+	var assetsInDB []types.GameAsset
 	for assetRows.Next() {
 		var ga types.GameAsset
 		if err = assetRows.Scan(&ga.UUID, &ga.Name, &ga.Description, &ga.Asset); err != nil {
 			return nil, err
 		}
-		assets = append(assets, ga)
+		assetsInDB = append(assetsInDB, ga)
 	}
-	for _, id := range ids {
+	for ai, id := range ids {
 		uid, _ := uuid.Parse(id)
-		if !slices.ContainsFunc(assets, func(ga types.GameAsset) bool { return ga.UUID == uid }) {
-			assets = append(assets, genericAsset(uid))
+		nextInd := slices.IndexFunc(assetsInDB, func(ga types.GameAsset) bool { return ga.UUID == uid })
+		if nextInd == -1 {
+			assets[ai] = genericAsset(uid)
+		} else {
+			assets[ai] = assetsInDB[nextInd]
 		}
+		assets[ai].EquippedSlot = slots[ai]
+		assets[ai].Reference = refs[ai]
+		assets[ai].Quantity = 1
 	}
 	return assets, nil
 }
